@@ -334,7 +334,7 @@ static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
     //if buffer is in use/available/whatever    
     if(i2s_buffers[isr_buffer_reference].status==BUFFER_filled)
     {
-        for(isr_incrementor = 0; isr_incrementor < 32; isr_incrementor++){
+        for(isr_incrementor = 0; isr_incrementor < 24; isr_incrementor++){
             *(i2s_registers+FIFO_A) = i2s_buffers[isr_buffer_reference].buffer[isr_buffer_index++];
             if(isr_buffer_index==1024) break; 
         }
@@ -519,7 +519,7 @@ void release_the_hounds(void);
 #define IRQ_TO_USE 81
 static struct irqaction bcm2708_i2s_irq = {
    .name = "Raspberry Pi I2S handler",
-   .flags = IRQF_DISABLED |IRQF_TRIGGER_HIGH | IRQF_IRQPOLL,
+.flags = IRQF_TRIGGER_HIGH,//   .flags = IRQF_DISABLED |IRQF_TRIGGER_HIGH | IRQF_IRQPOLL,
    .handler = i2s_interrupt_handler,
 };
 
@@ -638,7 +638,7 @@ void setup_i2s(void)
 
     //*(i2s_registers+CS_A) &=~( 3 <<5);  //set TXTHR
     //*(i2s_registers+CS_A) &=~( 3 <<5);
-    *(i2s_registers+CS_A) |=( 0 <<5); //2 seems to avoid errors (until interrupts are stalled)
+    *(i2s_registers+CS_A) |=( 1 <<5); //2 seems to avoid errors (until interrupts are stalled)
     for(i = 0; i < 32; i++)
        (*(i2s_registers+FIFO_A)) = 0;
     // --> ENABLE SYNC bit
