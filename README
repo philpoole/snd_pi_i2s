@@ -1,0 +1,16 @@
+Raspberry PI PCM I2S driver
+===========================
+
+This repository contains a very poor quality I2S PCM ALSA driver
+for Raspberry Pi.
+It will output 16 bits per sample, 44100Hz stereo I2S to use with a
+DAC similar to the TDA1541A. If you require different format or frequency
+then feel free to modify this driver to suit, but I can't guarantee support.
+
+
+It is a work in progress which I hope to continue in time.
+The first version uses an IRQ to keep the PCM FIFO full.
+However, there are glitches in the audio due to the sheer mass of interrupts.
+I hope to improve that with time by using DMA.
+
+Phil.
