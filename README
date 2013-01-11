@@ -7,6 +7,13 @@ It will output 16 bits per sample, 44100Hz stereo I2S to use with a
 DAC similar to the TDA1541A. If you require different format or frequency
 then feel free to modify this driver to suit, but I can't guarantee support.
 
+This is a kernel driver, so in order to build this, you will need to be running
+a successfully built kernel, for which you have the kernel source code to which 
+this driver can be built against.
+
+To build..
+make -C /home/pi/linux M=$PWD
+(if your linux source tree lives at /home/pi/linux, for instance) 
 
 It is a work in progress which I hope to continue in time.
 The first version uses an IRQ to keep the PCM FIFO full.
