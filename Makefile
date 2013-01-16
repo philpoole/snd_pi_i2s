@@ -1,6 +1,8 @@
 #To build...
 #make -C /home/pi/linux M=$PWD
-#(if your linux source tree lives at /home/pi/linux, for instance)
+#(if your linux source tree lives at /home/pi/linux, for instance.
+
+ccflags-y:=-O2
 
 obj-m:=snd_pcm_pi_i2s.o
 
