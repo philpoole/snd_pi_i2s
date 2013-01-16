@@ -31,6 +31,8 @@
    written by Jaroslav Kysela. Thanks for the inspiration.
 */
 
+#include <asm/system.h>
+
 #include <linux/init.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
@@ -326,10 +328,12 @@ static int pi_i2s_pcm_copy(struct snd_pcm_substream *substream,
 }
 
 static int isr_incrementor=0;
+static unsigned long irq_flags=0;
 
 static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
 {
     //masking stuff
+    local_irq_save(irq_flags);
     *(i2s_registers+INTEN_A) = 0x00;
     //if buffer is in use/available/whatever    
     if(i2s_buffers[isr_buffer_reference].status==BUFFER_filled)
@@ -368,7 +372,8 @@ static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
     *(i2s_registers+CS_A) &= 0xffffbfff;//clear the error flag by setting it
     //enable interrupts
     *(i2s_registers+INTSTC_A) = 0x01;
-    *(i2s_registers+INTEN_A) = 0x01; 
+    *(i2s_registers+INTEN_A) = 0x01;
+    local_irq_restore(irq_flags); 
     return IRQ_HANDLED;
 }
 
