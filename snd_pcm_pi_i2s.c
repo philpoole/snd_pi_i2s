@@ -326,19 +326,42 @@ static int pi_i2s_pcm_copy(struct snd_pcm_substream *substream,
     }
     return 0; /* do nothing */
 }
-
+static int isr_count=0;
 static int isr_incrementor=0;
 static unsigned long irq_flags=0;
+static unsigned int buffer_fill_count = 0;
 
 static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
 {
     //masking stuff
     local_irq_save(irq_flags);
     *(i2s_registers+INTEN_A) = 0x00;
+    buffer_fill_count = 24;
+    isr_count++;
+    if(*(i2s_registers+CS_A) & ((1<<15)|(1<<13)))
+    {
+
+        *(i2s_registers+CS_A) &= ~(1<<2);  //Disable transmission
+        *(i2s_registers+CS_A) |= (1<<3);   //Clear TX FIFO
+#if 0
+        //use sync flag to wait 2 PCM clocks
+        isr_temp = *(i2s_registers+CS_A) & (1<<24);
+        *(i2s_registers+CS_A) |= ~isr_temp;
+        while(~isr_temp != *(i2s_registers+CS_A) & (1<<24) )
+        {
+            //do nothing
+        }
+#endif
+        buffer_fill_count = 32;
+        *(i2s_registers+CS_A) |= (1<<2);    //Enable transmission
+        //shouldn't we clear the error?
+        *(i2s_registers+CS_A)|= (1<<13);
+    }
+
     //if buffer is in use/available/whatever    
     if(i2s_buffers[isr_buffer_reference].status==BUFFER_filled)
     {
-        for(isr_incrementor = 0; isr_incrementor < 24; isr_incrementor++){
+        for(isr_incrementor = 0; isr_incrementor < buffer_fill_count; isr_incrementor++){
             *(i2s_registers+FIFO_A) = i2s_buffers[isr_buffer_reference].buffer[isr_buffer_index++];
             if(isr_buffer_index==1024) break; 
         }
@@ -348,7 +371,7 @@ static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
         //just shove zeroes in the fifo
         if(*(i2s_registers+CS_A) & (1<<17))
         {
-            for(isr_incrementor = 0; isr_incrementor < 32; isr_incrementor++){
+            for(isr_incrementor = 0; isr_incrementor < 8; isr_incrementor++){
                 if(*(i2s_registers+CS_A)& (1<<19))
                      *(i2s_registers+FIFO_A) = 0;
                 else
@@ -369,7 +392,7 @@ static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
         isr_buffer_index=0; //point at beginning
     }
     //error handling
-    *(i2s_registers+CS_A) &= 0xffffbfff;//clear the error flag by setting it
+    //*(i2s_registers+CS_A) &= 0xffffbfff;//clear the error flag by setting it
     //enable interrupts
     *(i2s_registers+INTSTC_A) = 0x01;
     *(i2s_registers+INTEN_A) = 0x01;
