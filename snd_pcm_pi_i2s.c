@@ -151,14 +151,13 @@ static int pi_i2s_pcm_prepare(struct snd_pcm_substream *substream)
 }
 
 static unsigned int isr_pointer=0;
+static unsigned int isr_real_pointer = 0;
 unsigned int pointer_count=0;
 static snd_pcm_uframes_t pi_i2s_pcm_pointer(struct snd_pcm_substream *substream)
 {
     //printk(KERN_INFO "POINTER %d\n", isr_pointer*1024);
-
-    //if(isr_pointer >= 128*1024) isr_pointer = 0; //wrap if needs be
-
-    return (snd_pcm_uframes_t) isr_pointer*1024/*+isr_buffer_index*/;
+    //return (snd_pcm_uframes_t) isr_pointer*1024/*+isr_buffer_index*/;
+    return (snd_pcm_uframes_t) isr_real_pointer;
 
 }
 
@@ -254,6 +253,7 @@ typedef enum
 typedef struct
 {
     unsigned int *buffer;
+    unsigned int count;
     buffer_status status;
     struct snd_pcm_substream *substream;
 }i2s_data_buffer;
@@ -269,6 +269,7 @@ static void free_buffers(void)
             free_page((unsigned long)pi_i2s_page[i]);
             pi_i2s_page[i] = NULL;
             i2s_buffers[i].buffer = NULL;
+            i2s_buffers[i].count = 0;
             i2s_buffers[i].status = BUFFER_killed;
         }
 }
@@ -286,6 +287,7 @@ static int alloc_buffers(void)
         }
         i2s_buffers[i].buffer = pi_i2s_page[i];
         i2s_buffers[i].status = BUFFER_available;
+        i2s_buffers[i].count = 0;
     }
     return 0;
 }
@@ -311,11 +313,12 @@ static int pi_i2s_pcm_copy(struct snd_pcm_substream *substream,
 
     if(i2s_buffers[write_index].status==BUFFER_available)
     {
-        copy_from_user(i2s_buffers[write_index].buffer, dst, 4096);
+        copy_from_user(i2s_buffers[write_index].buffer, dst, count*4 );
         //set up a tasklet to wait for ISR to finish with this buffer and then call snd_pcm_period_elapsed(substream);
         //or, get the ISR to summon a tasklet or workqueue to do the same when it's happy it's done
         i2s_buffers[write_index].substream = substream;
         i2s_buffers[write_index].status = BUFFER_filled;
+        i2s_buffers[write_index].count = count;
         write_index++;
         if(write_index == NUMBER_OF_BUFFERS)
             write_index = 0;
@@ -363,7 +366,7 @@ static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
     {
         for(isr_incrementor = 0; isr_incrementor < buffer_fill_count; isr_incrementor++){
             *(i2s_registers+FIFO_A) = i2s_buffers[isr_buffer_reference].buffer[isr_buffer_index++];
-            if(isr_buffer_index==1024) break; 
+            if(isr_buffer_index== i2s_buffers[isr_buffer_reference].count) break; 
         }
     }
     else
@@ -380,10 +383,11 @@ static irqreturn_t i2s_interrupt_handler(int irq, void *dev_id)
         }       
         zeroes_pumped++;
     }
-    if((isr_buffer_index >=1024)&&(i2s_buffers[isr_buffer_reference].status==BUFFER_filled)) //special case, we've previously finished a buffer
+    if((isr_buffer_index >=i2s_buffers[isr_buffer_reference].count)&&(i2s_buffers[isr_buffer_reference].status==BUFFER_filled)) //special case, we've previously finished a buffer
     {
         i2s_buffers[isr_buffer_reference].status=BUFFER_available;
         isr_pointer++;
+        isr_real_pointer+=i2s_buffers[isr_buffer_reference].count;
         if(pi_i2s_opened)
             snd_pcm_period_elapsed(i2s_buffers[isr_buffer_reference].substream);
         //increment to next buffer, cope with wrapping
